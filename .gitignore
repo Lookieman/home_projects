@@ -1,0 +1,17 @@
+#sensitive data
+
+**/data/
+**/result/
+**/*.xlsx
+**/config.json
+**/.env
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+
+#IDE
+.vscode/
+.idea/
