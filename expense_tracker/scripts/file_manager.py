@@ -1,6 +1,6 @@
 
 import shutil
-from expense_tracker import DATA_DIR, ARCHIVE_DIR, ONEDRIVER_DIR, logger
+from expense_tracker import DATA_DIR, ARCHIVE_DIR, ONEDRIVE_DIR, logger
 from pathlib import Path
 
 class ExpenseFileManager:
@@ -10,7 +10,7 @@ class ExpenseFileManager:
         #set folder path
         self.archive_dir = ARCHIVE_DIR
         self.data_path = DATA_DIR
-        self.onedrive_path = ONEDRIVER_DIR
+        self.onedrive_path = ONEDRIVE_DIR
                 
         #initialize logging
         self.logger = logger

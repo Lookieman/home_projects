@@ -6,7 +6,7 @@ import requests
 import pandas as pd
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from PIL import Image
 from expense_tracker import logger
 from dotenv import load_dotenv
@@ -83,7 +83,7 @@ class ReceiptProcessor:
         "amount": "number or "NA" if not visible",
         "currency: "Currency of amount or "NA" is not visible",
         "date": "ddmmyy format or NA if not visible", 
-        "payment_method": "Cash or Visa or Mastercard or NA if not clear",
+        "payment_method": "Cash or Visa or Mastercard or Paynow/Paylah or NA if not clear",
         "card_type": "last 4 digits or NA if not visible/applicable"
         }
 
@@ -141,10 +141,12 @@ class ReceiptProcessor:
         validated_data['amount'] = self.validate_amount(response_data['amount'], response_data['currency'])
         validated_data['date'] = self. validate_date_format(response_data['date'])
         validated_data['payment_method'] = response_data['payment_method']
-        if response_data['payment_method'].lower != 'cash':
+        
+        if response_data['payment_method'].lower() != 'cash':
             validated_data['card_type'] = self.validate_card_digits(response_data['card_type'])
         else:
             validated_data['card_type'] = 'NA' #cash payment
+        
         return validated_data
 
     def validate_date_format(self, date_str):
@@ -157,11 +159,10 @@ class ReceiptProcessor:
         
         try:
             corrected_date = datetime.strptime(date_str, '%d%m%y')
+            return corrected_date.strftime('%d%m%y')
         except ValueError:
             self.logger.error(f"Error formatting date {date_str}")
             return 'NA'
-
-        return corrected_date
     
     def validate_card_digits(self, card_type):
         """Extract the last 4 digits and classify the card as DBS-V, DBS-E or Trust"""
@@ -181,7 +182,7 @@ class ReceiptProcessor:
             return "DBS-V"
         elif card_num == '5393':
             return "DBS-E"
-        elif card_num =='':
+        elif card_num =='6595':
             return "Trust"
         else:
             return "NA"
@@ -225,14 +226,12 @@ class ReceiptProcessor:
                 converted_amount = data['conversion_result']
             else:
                 self.logger.error(f"currency API error: {data.get('error-type')}")
-            
-            return 'NA'
+                converted_amount = 'NA'
         
         except Exception as e:
             self.logger.error(f"Currency conversion failed {e}")
+            converted_amount = 'NA'
         
-
-
         return converted_amount
     
     
