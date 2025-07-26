@@ -8,7 +8,7 @@ import json
 import os
 from datetime import datetime
 from PIL import Image
-from expense_tracker import logger
+from utils import logger
 from dotenv import load_dotenv
 from urllib.parse import urljoin
 
