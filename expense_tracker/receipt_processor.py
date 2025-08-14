@@ -202,7 +202,7 @@ class ReceiptProcessor:
             return 'NA'
         
         #check if currency other than SGD. if yes, convert
-        if currency == "SGD" and amount.isdigit():
+        if currency == "SGD":
             valid_amount = amount.strip()
         else:
             valid_amount = self.convert_currency(amount.strip(), currency)

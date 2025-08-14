@@ -31,16 +31,13 @@ class ExcelManager:
         start_date = date(expense_year, expense_mth, 14)
 
         if int(expense_mth) == 12:
-            end_date = date(expense_year, 01, 14)
+            end_date = date(expense_year + 1, 01, 14)
         else:
             end_date = date(expense_year, int(expense_mth) + 1, 14)
 
-        formatted_start_date = start_date.strftime("%d%m%y")
-        formatted_end_date = end_date.strftime("%d%m%y")
-
-        start_week = self.determine_week_num(formatted_start_date)
-        end_week = self.determine_week_num(formatted_end_date)
-
+        start_week = self.determine_week_num(start_date)
+        end_week = self.determine_week_num(end_date)
+        
         # check if excel file exists already 
         if excel_filepath.exists():
             self.logger.info(f"file {excel_filename} already exists")
@@ -94,6 +91,7 @@ class ExcelManager:
         # Determine week number (19th-13th cycle)
         week_no = self.determine_week_num(transaction_details['date'])
         sheet_name = f"week_{week_no}"
+        workbook_path = Path(RESULTS_DIR / expense_workbook)
         
         # Add to appropriate worksheet
         wb = load_workbook(expense_workbook)
@@ -109,7 +107,7 @@ class ExcelManager:
         sheet_update[f"E{new_row}"] = transaction_details['card_type']
         sheet_update[f"F{new_row}"] = "" #leave spending_type blank for now
         
-        wb.save(expense_workbook)
+        wb.save(workbook_path)
 
     def determine_week_num(self, date_to_check: date):
         """ Calculate week based on date using ISO calendar"""
@@ -122,10 +120,9 @@ class ExcelManager:
         return week_number
 
     def last_row_in_column(self, ws: worksheet, col_letter: str):
+        
         for row in range(ws.max_row, 0, -1):
             if ws[f"{col_letter}{row}"].value not in (None, ""):
                 return row
-            else:
-                return 0
-
-    
+            
+        return 0
