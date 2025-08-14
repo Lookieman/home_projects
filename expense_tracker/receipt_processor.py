@@ -81,7 +81,7 @@ class ReceiptProcessor:
         {
         "merchant_name": "string or NA if not visible",
         "amount": "number or "NA" if not visible",
-        "currency: "Currency of amount or "NA" is not visible",
+        "currency": "Currency of amount or "NA" is not visible",
         "date": "ddmmyy format or NA if not visible", 
         "payment_method": "Cash or Visa or Mastercard or Paynow/Paylah or NA if not clear",
         "card_type": "last 4 digits or NA if not visible/applicable"

@@ -25,7 +25,7 @@ class ExcelManager:
 
         #get excel filename
         excel_filename = f"Expense_{expense_mth}_{expense_year}.xlsx"
-        excel_filepath = Path(RESULTS_DIR / excel_filename)
+        excel_filepath = RESULTS_DIR / excel_filename
         
         #get week number
         start_date = date(expense_year, expense_mth, 14)
@@ -91,8 +91,7 @@ class ExcelManager:
         # Determine week number (19th-13th cycle)
         week_no = self.determine_week_num(transaction_details['date'])
         sheet_name = f"week_{week_no}"
-        workbook_path = Path(RESULTS_DIR / expense_workbook)
-        
+
         # Add to appropriate worksheet
         wb = load_workbook(expense_workbook)
         sheet_update = wb[sheet_name]
@@ -107,7 +106,7 @@ class ExcelManager:
         sheet_update[f"E{new_row}"] = transaction_details['card_type']
         sheet_update[f"F{new_row}"] = "" #leave spending_type blank for now
         
-        wb.save(workbook_path)
+        wb.save(expense_workbook)
 
     def determine_week_num(self, date_to_check: date):
         """ Calculate week based on date using ISO calendar"""
