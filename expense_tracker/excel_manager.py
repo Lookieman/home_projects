@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from openpyxl import Workbook, worksheet, load_workbook
 from pathlib import Path
+from datetime import datetime
 from utils import RESULTS_DIR, logger
 class ExcelManager:
     def __init__(self):
@@ -84,7 +85,7 @@ class ExcelManager:
 
             return wb
 
-    def add_transaction (self, expense_workbook: Workbook, transaction_details: dict):
+    def add_transaction (self, expense_workbook: Path, transaction_details: dict):
         """
         Method will add transaction based on transaction date to the workbook
         """
@@ -108,10 +109,12 @@ class ExcelManager:
         
         wb.save(expense_workbook)
 
-    def determine_week_num(self, date_to_check: date):
+    def determine_week_num(self, date_to_check: str):
         """ Calculate week based on date using ISO calendar"""
+
+        date_obj = datetime.strptimestrptime(date_to_check, '%d%m%y')
         #Get iso_calendar representation (year, week no, weekday)
-        iso_calendar = date_to_check.isocalendar()
+        iso_calendar = date_obj.isocalendar()
 
         #get week number
         week_number =iso_calendar[1]
