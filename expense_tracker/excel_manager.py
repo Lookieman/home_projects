@@ -68,7 +68,7 @@ class ExcelManager:
             ws["F3"] = "Total Spend"
 
             #Create sheets for each week
-            for week_num in (start_week, end_week):
+            for week_num in range(start_week, end_week+1):
                 sheet_name = f"week_{week_num}"
                 wb.create_sheet(title = sheet_name)
                 
@@ -112,7 +112,7 @@ class ExcelManager:
     def determine_week_num(self, date_to_check: str):
         """ Calculate week based on date using ISO calendar"""
 
-        date_obj = datetime.strptimestrptime(date_to_check, '%d%m%y')
+        date_obj = datetime.strptime(date_to_check, '%d%m%y')
         #Get iso_calendar representation (year, week no, weekday)
         iso_calendar = date_obj.isocalendar()
 
