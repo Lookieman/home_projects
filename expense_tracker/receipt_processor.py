@@ -80,7 +80,7 @@ class ReceiptProcessor:
         Required JSON structure:
         {
         "merchant_name": "string or NA if not visible",
-        "amount": "number or "NA" if not visible",
+        "amount": "string of numbers or "NA" if not visible",
         "currency": "Currency of amount or "NA" is not visible",
         "date": "ddmmyy format or NA if not visible", 
         "payment_method": "Cash or Visa or Mastercard or Paynow/Paylah or NA if not clear",
@@ -196,7 +196,9 @@ class ReceiptProcessor:
         return clean_merch_name 
 
     def validate_amount(self, amount, currency):
-        
+        """
+        Amount retrieved from LLM will always be string
+        """
         #check if NA
         if amount == 'NA':
             return 'NA'

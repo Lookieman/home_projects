@@ -18,7 +18,7 @@ class ExpenseFileManager:
 
     def move_files_from_gdrive(self):
         """
-        Find images in gdrive folder in gdrive folder and move it to 
+        Find images in gdrive folder in gdrive folder and move it to data_dir
         """
 
         #check if gdrive folder exists
@@ -26,14 +26,16 @@ class ExpenseFileManager:
             #Get list of image files (*.png or *.jpg)
             image_files = list(self.gdrive_path.glob('*.jpg')) + list(self.gdrive_path.glob('*.png'))
 
-        #for each file, move file to inbox_path
-        for image in image_files:
-            dest_path = self.data_path / image.name
-            self.logger.info(f"moved {image.name} to {dest_path}")
-            try:
-                shutil.move(image, dest_path)
-            except Exception as e:
-                self.logger.error(f"failed to move {image.name}: {e}")
+            #for each file, move file to inbox_path
+            for image in image_files:
+                dest_path = self.data_path / image.name
+                self.logger.info(f"moved {image.name} to {dest_path}")
+                try:
+                    shutil.move(image, dest_path)
+                except Exception as e:
+                    self.logger.error(f"failed to move {image.name}: {e}")
+        else:
+            self.logger.error(f"Directory {self.gdrive_path} does not exist")
 
     def get_unprocessed_file(self)->list:
         """
