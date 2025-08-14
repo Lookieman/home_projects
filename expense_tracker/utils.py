@@ -6,11 +6,12 @@ from pathlib import Path
 #set folder path
 ARCHIVE_DIR = Path('C:/home_projects/expense_tracker/data/archive')
 DATA_DIR = Path('C:/home_projects/expense_tracker/data/inbox')
-ONEDRIVE_DIR = Path('E:/OneDrive/expense_inbox')
+GDRIVE_DIR = Path('G:/My Drive/expense_inbox')
 LOGFILE_DIR = Path('C:/home_projects/expense_tracker/log/')
+RESULTS_DIR = Path('C:/home_projects/expense_tracker/result/')
 
 
-def setup_logger(self, log_dir: Path, log_file: Optional[str] = "expense_tracker.log", log_level: int = logging.INFO) -> logging.Logger:
+def setup_logger(log_dir: Path, log_file: Optional[str] = "expense_tracker.log", log_level: int = logging.INFO) -> logging.Logger:
 
     logger = logging.getLogger("expense_tracker")
 

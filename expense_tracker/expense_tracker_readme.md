@@ -43,7 +43,7 @@ expense_tracker/
 
 - Python 3.8+
 - Claude API key from Anthropic
-- OneDrive folder: `C:\Users\luqma\OneDrive\expense_inbox`
+- gdrive folder: `C:\Users\luqma\gdrive\expense_inbox`
 
 ### Installation
 
@@ -67,7 +67,7 @@ expense_tracker/
 
 4. **Configure paths** in `config/settings.py`:
    ```python
-   ONEDRIVE_INBOX = "C:/Users/luqma/OneDrive/expense_inbox"
+   gdrive_INBOX = "C:/Users/luqma/gdrive/expense_inbox"
    DATA_FOLDER = "C:/home_projects/expense_tracker/data"
    RESULTS_FOLDER = "C:/home_projects/expense_tracker/result"
    ```
@@ -76,7 +76,7 @@ expense_tracker/
 
 ### Basic Workflow
 
-1. **Take receipt photos** and save to OneDrive expense_inbox folder
+1. **Take receipt photos** and save to gdrive expense_inbox folder
 2. **Run file transfer** (can be automated on startup):
    ```bash
    python scripts/file_manager.py
