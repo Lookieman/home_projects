@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 
+
 from transformers import(
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -24,21 +25,21 @@ from rag_system import RAGSystem
 
 class ModelManager():
     def __init__(self, default_quant_bits = 4, mem_limit = 0.1):
- 
-        self. models = {
-        'tiny': 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
-        'gemma': 'google/gemma-2-9b-it',
+
+        self.models = {
+        'qwen': 'Qwen/Qwen3-4B',
+        'gemma': 'google/gemma-3n-E4b-it',
         'mistral': 'mistralai/Mistral-7B-v0.1'
         }
 
         self.model_sizes = {
-        'tiny': 2.2,    # ~1.1B parameters
-        'gemma': 18.0,  # ~9B parameters  
+        'qwen': 4.0,    # ~4.02B parameters
+        'gemma': 8.00,  # ~8B parameters  
         'mistral': 90.0 # ~47B parameters (8x7B architecture)
         }   
 
         self.quantization_strategy = {
-            'tiny': None,
+            'qwen': '8bit',
             'gemma': '4bit',
             'mistral': '4bit'
         }      
@@ -123,29 +124,6 @@ class ModelManager():
             logger.warning(f"Failed to setup DSPy for {model_key}:str(e)")
             logger.info("continuing without DSPy integration")
         
-        def unload_curr_model():
-
-            if self.current_model is None:
-                logger.info ("No model currently loaded")
-                return
-            
-            logger.info ("Unloadeding model: {self.current_model_name}")
-
-            #Clear DSPy config
-            dspy.settings.configure(lm=None)
-            delattr(self, 'dspy_lm')
-
-            del self.current_model
-            del self.current_tokenizer
-
-            self.current_model = None
-            self.current_tokenizer = None
-            self.current_model_name = None
-            self.current_device = None
-
-            clear_memory()
-            logger.info("Model unloaded and memory cleared")
-
     def _load_qa_questions(self, paper_name: str) -> list :
 
         qa_questions = []
@@ -177,6 +155,29 @@ class ModelManager():
             logger.error(f"Error loading QA questions for {paper_name}: {str(e)}")
 
         return qa_questions
+
+    def unload_curr_model(self):
+
+        if self.current_model is None:
+            logger.info ("No model currently loaded")
+            return
+        
+        logger.info ("Unloading model: {self.current_model_name}")
+
+        #Clear DSPy config
+        dspy.settings.configure(lm=None)
+        delattr(self, 'dspy_lm')
+
+        del self.current_model
+        del self.current_tokenizer
+
+        self.current_model = None
+        self.current_tokenizer = None
+        self.current_model_name = None
+        self.current_device = None
+
+        clear_memory()
+        logger.info("Model unloaded and memory cleared")
 
     def get_current_model_info(self) ->Dict[str, any]:
         if self.current_model is None:
@@ -763,9 +764,71 @@ class ModelManager():
             
         return  save_success  
 
-    
+    def create_model_config(self, model_key:str) -> Dict:    
+        """
+        Create model config with appropriate quantization
+        Method determines best quantization strategy based on model size, VRAM and environment(Local vs colab)
+        """
+        #define variables
+        model_path=None
+        model_sizes=None
+        quantization_config=None
+        device_map=None
+        avail_memory=None
 
-        
+        #Get model info
+        if model_key not in self.models:
+            logger.error(f"Unknown model key: {model_key}")
+
+        #set model info
+        model_path = self.models[model_key]
+        model_size = self.model[model_sizes]
+
+        #Check memory
+        if torch.cuda.is_available():
+            device_prop = torch.cuda.get_device_properties[0]
+            avail_memory = device_prop.total_memory/(1024**3)
+            logger.info(f"Available VRAM: {avail_memory:2f} GB")
+
+        #set quantization strategy
+        memory_buffer = 0.8 #use only 80% of available memory
+        usable_memory = avail_memory * memory_buffer
+
+        if model_size > usable_memory:
+            #Use 4-bit quantization
+            logger.info(f"Model size: {model_size} and usable memory: {usable_memory}. Use 4-bit for {model_key}")
+            #initialize quantization
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16
+                bnb_4bit_quant_type="nf4"
+                bnb_4bit_use_double_quant=True
+                )
+            device_map = "auto"
+        elif model_size > usable_memory *0.5:
+            #Use 8-bit quantization
+            logger.info(f" Model size: {model_size} and usable memory: {usable_memory}Use 8-bit for {model_key}")
+            #initialize quantization
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                bnb_8bit_compute_dtype=torch.float16
+            )
+            device_map = "auto"
+        else:
+            quantization_config = None
+            device_map = self.device 
+
+        #set model_config
+        model_config = {
+            'model_path': model_path,
+            'model_key': model_key,
+            'quantization_config': quantization_config,
+            'device_map':device_map,
+            'torch_dtype': torch.float16,
+            'trust_remote_code':True
+
+        }
+        return model_config    
 
 
     
