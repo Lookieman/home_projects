@@ -1,28 +1,22 @@
 import torch
 import gc
 import json
+import dspy
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Optional
 from datetime import datetime
-
-
 from transformers import(
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig
 )
-
-import dspy
-
 from .utils import(
     init_env,
     logger,
     clear_memory,
     detect_environment
 ) 
-
 from rag_system import RAGSystem
-
 class ModelManager():
     def __init__(self, default_quant_bits = 4, mem_limit = 0.1):
 
@@ -71,92 +65,68 @@ class ModelManager():
         logger.info(f"ModelManager initialized with device:{self.device}")
         logger.info(f"Available models:{list(self.models.keys())}")
     
-    def _create_quantization_strategy(self, model_key: str) -> Optional[BitsAndBytesConfig]:
-        #define quantization based on model size
-
-        strategy = self.quantization_strategy.get(model_key)
-
-        if strategy is None:
-            logger.info(f"No quantization for {model_key} model")
-        
-        if strategy == '4bit':
-            logger.info(f"Using 4bit quantization for {model_key} model")
-
-            return  BitsAndBytesConfig(
-                load_in_4bit = True,
-                bnb_4bit_compute_dtype=torch.float,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_storage=torch.uint8
-            )
-        
-        return None
-    
-    def _setup_device_map(self,model_key: str) -> str:
-        #Setup device mapping based on available hardware and model size
-        model_size = self.model_sizes[model_key]
-
-        if self.device == "cuda":
-
-            if model_size > 5.0:
-                return "auto"
-            else:
-                return "cuda"
-            
-        elif self.device == "mps":
-            return "mps"
-        else:
-            return "cpu"
-
-    def _setup_dspy_lm(self, model, tokenizer, model_key:str):
-        try:
-            self.dspy_lm = dspy.HFModel(
-                model=model,
-                tokenizer=tokenizer,
-                model_name=model_key
-            )
+    #-----Model loading methods-----
+    def load_model(self, model_key: str) -> bool:
+        """
+        Load specified model with appropriate quantization strategy
+        """
                 
+        if model_key not in self.models:
+            logger.error(f"Unknown model key passed: {model_key}")
+            return False
 
-            dspy.settings.configure(lm=self.dspy_lm)
-            logger.info(f"DSPy language model configured for {model_key}")
+        #unload model before loading new one
+        if self.current_model is not None:
+            self.unload_current_model()
 
-        except Exception as e:
-            logger.warning(f"Failed to setup DSPy for {model_key}:str(e)")
-            logger.info("continuing without DSPy integration")
+        #Get model config
+        config = self.create_model_config(model_key)
+        if config is None:
+            return False
         
-    def _load_qa_questions(self, paper_name: str) -> list :
-
-        qa_questions = []
-        qa_file_path = None
-
         try:
-            qa_file_path = self.reference_dir / "qa_pairs.json"
-        
-            if not qa_file_path.exists():
-                logger.warning(f"QA pairs file not found: {qa_file_path}")
-                return qa_questions
-            #Load QA pairs from json file
+            logger.info(f"Loading model: {model_key} from {config['model_path']}")
+            #create quantization config
 
-            with open(qa_file_path, 'r', encoding = 'utf-8') as file:
-                qa_data = json.load(file)
+            #load tokenizer
+            logger.info(f"Load tokenizer for {model_key}")
+            tokenizer = AutoTokenizer.from_pretrained(config['model_path'])
+
+            #handle tokenizer padding
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+
+            #Prepare model kwargs
+            model_kwargs = {
+                'pretrained_model_name_or_path': config['model_path'],
+                'device_map': config['device_map'],
+                'torch_dtype': config['torch_dtype'],
+                'trust_remote_code': config['trust_remote_code']
+            }
+
+            if config['quantization_config'] is not None:
+                model_kwargs['quantization_config'] = config['quantization_config']
+                logger.info(f'Using quantizatin for {model_key}')
+
+            model = AutoModelForCausalLM(**model_kwargs)
+
+            #srtup dspy
+            self._setup_dspy_lm(model, tokenizer, model_key)
             
-            paper_key = paper_name.replace('.pdf', '')
+            #setup references
+            self.current_model = model
+            self.current_tokenizer = tokenizer
+            self.current_model_name = model_key
+            self.current_device = config['device_map']
 
-            #look for matching paper in QA data
-            if paper_key in qa_data:
-                qa_pairs = qa_data[paper_key]
-                #Extract question
-                qa_questions = [pair.get('question', '') for pair in qa_pairs if 'question' in pair]
-                logger.info(f"Loaded {len(qa_questions)} QA questions for {paper_name}")
-            else:
-                logger.warning(f"No QA questions found for paper key: {paper_key}")
+            logger.info(f"Successfully loaded {model_key}")
+            return True
 
         except Exception as e:
-            logger.error(f"Error loading QA questions for {paper_name}: {str(e)}")
-
-        return qa_questions
-
-    def unload_curr_model(self):
+            logger.error(f"Failed to load model{model_key}: {str(e)}")
+            clear_memory()
+            return False    
+    def unload_current_model(self):
 
         if self.current_model is None:
             logger.info ("No model currently loaded")
@@ -178,83 +148,85 @@ class ModelManager():
 
         clear_memory()
         logger.info("Model unloaded and memory cleared")
+    def create_model_config(self, model_key:str) -> Dict:    
+        """
+        Create model config with appropriate quantization
+        Method determines best quantization strategy based on model size, VRAM and environment(Local vs colab)
+        """
+        #define variables
+        model_path=None
+        model_size=None
+        quantization_config=None
+        device_map=None
+        avail_memory=None
 
-    def get_current_model_info(self) ->Dict[str, any]:
-        if self.current_model is None:
-            return {"status": "no_model_loaded"}
-        
-        return{
-                "status": "model_loaded",
-                "model_name": self.current_model_name,
-                "model_path": self.models[self.current_model_name],
-                "model_size": self.model_sizes[self.current_model_name],
-                "quantization": self.quantization_strategies[self.current_model_name],
-                "device": self.current_device
-            }
-
-    def is_model_loaded(self, model_key: str = None) -> bool:
-        if model_key is None:
-            return self.current_model is not None
-        return self.current_model == model_key
-        
-
-    def load_model(self, model_key: str) -> bool:
-        #load specified model with appropriate quantization strategy
-        
+        #Get model info
         if model_key not in self.models:
-            logger.error(f"Unknown model key passed: {model_key}")
-            return False
+            logger.error(f"Unknown model key: {model_key}")
+            return None
 
-        #unload model before loading new one
-        if self.current_model is not None:
-            self.unload_current_model()
-        
+        #model_size assignment
         model_path = self.models[model_key]
-        logger.info(f"Loading model: {model_key} {model_path}")
+        model_size = self.model_sizes[model_key]
 
-        try:
-            #create quantization config
-            quantization_config = self._create_quantization_strategy(model_key)
-            device_map = self._setup_device_map(model_key)
+        #Check memory
+        if torch.cuda.is_available():
+            device_prop = torch.cuda.get_device_properties(0)
+            avail_memory = device_prop.total_memory/(1024**3)
+            logger.info(f"Available VRAM: {avail_memory:.2f} GB")
+        else:  
+            avail_memory = 16.0
+        #set quantization strategy
+        memory_buffer = 0.8 #use only 80% of available memory
+        usable_memory = avail_memory * memory_buffer
 
-            #load tokenizer
-            logger.info(f"Load tokenizer for {model_key}")
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-
-            #handle tokenizer padding
-            if tokenizer.pad_token is None:
-                tokenizer.pad_token = tokenizer.eos_token
+        if model_size > usable_memory:
+            #Use 4-bit quantization
+            logger.info(f"Model size: {model_size} and usable memory: {usable_memory}. Use 4-bit for {model_key}")
+            #initialize quantization
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True
+                )
             
-            logger.info (f"loading model {model_key} with device_map: {device_map}")
+        elif model_size > usable_memory *0.5:
+            #Use 8-bit quantization
+            logger.info(f" Model size: {model_size} and usable memory: {usable_memory}Use 8-bit for {model_key}")
+            #initialize quantization
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                bnb_8bit_compute_dtype=torch.float16
+            )   
+        else:
+            quantization_config = None
 
-            model_kwargs = {
-                'pretrained_model_name_or_path': model_path,
-                'device_map': device_map,
-                'torch_dtype': torch.float16,
-                'trust_remote_code': True
-            }
+        #set device map
+        if self.device == "cuda":
+            if model_size > 5.0:
+                device_map = "auto"
+            else:
+                device_map = "cuda"
+            
+        elif self.device == "mps":
+            device_map = "mps"
+        else:
+            device_map = "cpu"
 
-            if quantization_config is not None:
-                model_kwargs['quantization_config'] = quantization_config
-                logger.info(f'Using quantizatin for {model_key}')
+        #set model_config
+        model_config = {
+            'model_path': model_path,
+            'model_key': model_key,
+            'quantization_config': quantization_config,
+            'device_map':device_map,
+            'torch_dtype': torch.float16,
+            'trust_remote_code':True
+        }
 
-            model = AutoModelForCausalLM(**model_kwargs)
+        return model_config
 
-            self._setup_dspy_lm(model, tokenizer, model_key)
-            self.current_model = model
-            self.current_tokenizer = tokenizer
-            self.current_model_name = model_key
-            self.current_device = device_map
-
-            logger.info(f"Successfully loaded {model_key}")
-            logger.info(f"Model device: {next(model.parameters()).device}")
-
-            return True
-        except Exception as e:
-            logger.error(f"Failed to load model{model_key}: {str(e)}")
-            clear_memory()
-            return False
-
+#-----RAG System methods-----
     def setup_rag_system(self, papers_dir)->bool:
 
         
@@ -290,7 +262,7 @@ class ModelManager():
             logger.error("RAG system not initialized")
             return None    
 
-    
+#-----DSPy/Generation methods-----    
     def create_prompt_templates(self) -> list:
         templates = {}
 
@@ -408,7 +380,7 @@ class ModelManager():
 
         return answer_text, success   
 
-
+#----Processing methods-----
     def process_paper(self, paper_name, qa_questions=None) -> Dict[str, any]:
         
         #Initialize variables
@@ -537,7 +509,6 @@ class ModelManager():
                    
         return paper_results
     
-
     def run_evaluation_pipeline(self, qa_questions_dict=None)->list:
         
         all_results = {}
@@ -632,8 +603,58 @@ class ModelManager():
 
         return all_results
 
-    def save_results(self, all_results, timestamp=None) -> bool:
+#--Utility methods
+    def _setup_dspy_lm(self, model, tokenizer, model_key:str):
+        try:
+            self.dspy_lm = dspy.HFModel(
+                model=model,
+                tokenizer=tokenizer,
+                model_name=model_key
+            )
+            dspy.settings.configure(lm=self.dspy_lm)
+            logger.info(f"DSPy language model configured for {model_key}")
 
+        except Exception as e:
+            logger.exception(f"Failed to setup DSPy for {model_key}:str(e)")
+            logger.info("continuing without DSPy integration")  
+            
+    def _load_qa_questions(self, paper_name: str) -> list :
+        qa_questions = []
+        qa_file_path = None
+
+        try:
+            qa_file_path = self.reference_dir / "qa_pairs.json"
+        
+            if not qa_file_path.exists():
+                logger.warning(f"QA pairs file not found: {qa_file_path}")
+                return qa_questions
+            #Load QA pairs from json file
+
+            with open(qa_file_path, 'r', encoding = 'utf-8') as file:
+                qa_data = json.load(file)
+            
+            paper_key = paper_name.replace('.pdf', '')
+
+            #look for matching paper in QA data
+            if paper_key in qa_data:
+                qa_pairs = qa_data[paper_key]
+                #Extract question
+                qa_questions = [pair.get('question', '') for pair in qa_pairs if 'question' in pair]
+                logger.info(f"Loaded {len(qa_questions)} QA questions for {paper_name}")
+            else:
+                logger.warning(f"No QA questions found for paper key: {paper_key}")
+
+        except Exception as e:
+            logger.exception(f"Error loading QA questions for {paper_name}: {str(e)}")
+
+        return qa_questions
+    
+    def is_model_loaded(self, model_key: str = None) -> bool:
+        if model_key is None:
+            return self.current_model is not None
+        return self.current_model == model_key
+    
+    def save_results(self, all_results, timestamp=None) -> bool:
         save_success = False
         total_files_saved = 0
         failed_saves = 0
@@ -730,7 +751,7 @@ class ModelManager():
                         })
                         
                     except Exception as e:
-                        logger.error(f"Error saving results for {paper_file} with model {model_key}: {str(e)}")
+                        logger.exception(f"Error saving results for {paper_file} with model {model_key}: {str(e)}")
                         failed_saves += 1
                         continue
                 #Save model summary
@@ -749,7 +770,6 @@ class ModelManager():
                     failed_saves += 1
 
                 logger.info(f"Completed saving results for model {model_key}")
-
             #Check overall success
             if failed_saves == 0:
                 save_success = True
@@ -759,76 +779,12 @@ class ModelManager():
                 save_success = False
 
         except Exception as e:
-            logger.error(f"Critical error during save operation: {str(e)}")
+            logger.exception(f"Critical error during save operation: {str(e)}")
             save_success = False
             
         return  save_success  
 
-    def create_model_config(self, model_key:str) -> Dict:    
-        """
-        Create model config with appropriate quantization
-        Method determines best quantization strategy based on model size, VRAM and environment(Local vs colab)
-        """
-        #define variables
-        model_path=None
-        model_sizes=None
-        quantization_config=None
-        device_map=None
-        avail_memory=None
-
-        #Get model info
-        if model_key not in self.models:
-            logger.error(f"Unknown model key: {model_key}")
-
-        #set model info
-        model_path = self.models[model_key]
-        model_size = self.model[model_sizes]
-
-        #Check memory
-        if torch.cuda.is_available():
-            device_prop = torch.cuda.get_device_properties[0]
-            avail_memory = device_prop.total_memory/(1024**3)
-            logger.info(f"Available VRAM: {avail_memory:2f} GB")
-
-        #set quantization strategy
-        memory_buffer = 0.8 #use only 80% of available memory
-        usable_memory = avail_memory * memory_buffer
-
-        if model_size > usable_memory:
-            #Use 4-bit quantization
-            logger.info(f"Model size: {model_size} and usable memory: {usable_memory}. Use 4-bit for {model_key}")
-            #initialize quantization
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16
-                bnb_4bit_quant_type="nf4"
-                bnb_4bit_use_double_quant=True
-                )
-            device_map = "auto"
-        elif model_size > usable_memory *0.5:
-            #Use 8-bit quantization
-            logger.info(f" Model size: {model_size} and usable memory: {usable_memory}Use 8-bit for {model_key}")
-            #initialize quantization
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True,
-                bnb_8bit_compute_dtype=torch.float16
-            )
-            device_map = "auto"
-        else:
-            quantization_config = None
-            device_map = self.device 
-
-        #set model_config
-        model_config = {
-            'model_path': model_path,
-            'model_key': model_key,
-            'quantization_config': quantization_config,
-            'device_map':device_map,
-            'torch_dtype': torch.float16,
-            'trust_remote_code':True
-
-        }
-        return model_config    
+    
 
 
     
