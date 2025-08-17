@@ -5,7 +5,7 @@ import torch
 import logging
 import bitsandbytes as bnb
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 import torch.version
 from transformers import BitsAndBytesConfig
 
@@ -144,7 +144,7 @@ def verify_ref_data(reference_dir: Path, tasks=['Summarization', 'qa']) -> bool:
 
     return all_files_exist
 
-def init_env():
+def init_env() -> Dict:
     #Initialize environment for specified model
 
     #Setup directory
