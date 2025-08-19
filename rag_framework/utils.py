@@ -42,18 +42,15 @@ def setup_working_dir() -> str:
     try:
         from google.colab import drive
         drive.mount('/content/drive')
-        main_dir = Path('/content/drive/MyDrive/AI6130_Grp/')
-        log_dir = Path('/content/drive/MyDrive/AI6130_Grp/log')
-        papers_dir = Path('/content/drive/MyDrive/AI6130_Grp/papers')
-        models_dir = Path('/content/drive/MyDrive/AI6130_Grp/models')      
-        reference_dir = Path('/content/drive/MyDrive/AI6130_Grp/reference')
-      
+        main_dir = Path('/content/drive/MyDrive/rag_framework/')      
     except ImportError:
-        main_dir = Path('C:/Users/luqma/AI6130/AI6130_Grp/')
-        log_dir = Path('C:/Users/luqma/AI6130/AI6130_Grp/log')
-        papers_dir = Path('C:/Users/luqma/AI6130/AI6130_Grp/papers')
-        models_dir = Path('C:/Users/luqma/AI6130/AI6130_Grp/models')
-        reference_dir = Path('C:/Users/luqma/AI6130/AI6130_Grp/reference')
+        main_dir =  Path('C:/Users/luqma/AI6130/rag_framework/')
+
+    log_dir = main_dir / 'log'
+    papers_dir = main_dir / 'papers'
+    models_dir = main_dir / 'models'
+    reference_dir = main_dir / 'reference'
+
     main_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     papers_dir.mkdir(parents=True, exist_ok=True)

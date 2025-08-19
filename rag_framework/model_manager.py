@@ -16,7 +16,7 @@ from .utils import(
     clear_memory,
     detect_environment
 ) 
-from rag_system import RAGSystem
+from .rag_system import RAGSystem
 class ModelManager():
     def __init__(self, default_quant_bits = 4, mem_limit = 0.1):
 
@@ -53,6 +53,11 @@ class ModelManager():
             self.papers_dir =env_info['papers_dir']
             self.models_dir = env_info['models_dir']
             self.reference_dir = env_info ['reference_dir']
+            
+            self.current_model = None
+            self.current_tokenizer = None
+            self.current_model_name = None
+            self.current_device = None
         
         
         self.model_results_dirs = {}
@@ -228,8 +233,6 @@ class ModelManager():
 
 #-----RAG System methods-----
     def setup_rag_system(self, papers_dir)->bool:
-
-        
         papers_loaded = False
         success = False
 
@@ -512,7 +515,7 @@ class ModelManager():
     def run_evaluation_pipeline(self, qa_questions_dict=None)->list:
         
         all_results = {}
-        models_to_test = self.model_configs.keys()
+        models_to_test = self.models.keys
         pdf_files = []
         rag_setup_success = False
 
@@ -617,7 +620,7 @@ class ModelManager():
         except Exception as e:
             logger.exception(f"Failed to setup DSPy for {model_key}:str(e)")
             logger.info("continuing without DSPy integration")  
-            
+
     def _load_qa_questions(self, paper_name: str) -> list :
         qa_questions = []
         qa_file_path = None
