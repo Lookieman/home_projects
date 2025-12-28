@@ -1,7 +1,10 @@
-- 👋 Hi, I’m @Lookieman
-- 👀 I’m interested in Liverpool (the football club), video games and chess among other things
-- 🌱 I’m currently interested in deepening my understanding of applied ML/AI, especially in NLP and LLMs.
-- 💞️ I’m looking to contribute to open-source projects, hoping to solidify my learnings on Python as well as ML/AI
-- 📫 I can be reached at luqman.mohdali@gmail.com
+# home_projects (Archived)
 
+This repository is now archived and no longer actively maintained.
 
+The projects previously hosted here have been migrated to dedicated repositories:
+
+- 🧠 [rag_framework](https://github.com/Lookieman/rag_framework)
+- 💸 [expense_tracker](https://github.com/Lookieman/expense_tracker)
+
+For future development, please refer to the individual repositories above.
